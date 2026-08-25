@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { Users, Shield, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
@@ -5,6 +6,34 @@ import { Button } from "./ui/button";
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const savedUser = localStorage.getItem("user");
+
+    if (!token || !savedUser) {
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    // If at root path "/", redirect based on role
+    if (location.pathname === "/") {
+      try {
+        const userObj = JSON.parse(savedUser);
+        if (userObj.role === "donor") {
+          navigate("/donor", { replace: true });
+        } else if (userObj.role === "recipient") {
+          navigate("/recipient", { replace: true });
+        } else if (userObj.role === "admin") {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate("/login", { replace: true });
+        }
+      } catch (e) {
+        navigate("/login", { replace: true });
+      }
+    }
+  }, [location.pathname, navigate]);
   
   const isActive = (path: string) => {
     if (path === "/" || path === "/donor") {
@@ -14,8 +43,9 @@ export default function Layout() {
   };
 
   const handleLogout = () => {
-    // Clear any auth data here if needed
-    navigate("/login");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login", { replace: true });
   };
 
   return (
