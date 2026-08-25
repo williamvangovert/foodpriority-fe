@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:5001/api";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const token = localStorage.getItem("token");
@@ -33,5 +33,6 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 export const getImageUrl = (path: string | null): string => {
   if (!path) return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60"; // fallback placeholder
   if (path.startsWith("http")) return path;
-  return `http://localhost:5001${path}`;
+  const imageBase = import.meta.env.VITE_IMAGE_BASE_URL || "http://localhost:5001";
+  return `${imageBase}${path}`;
 };
