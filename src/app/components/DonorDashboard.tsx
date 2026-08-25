@@ -150,20 +150,18 @@ export default function DonorDashboard() {
           alert(`Lokasi berhasil diperoleh!\nKoordinat: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
         },
         (error) => {
-          console.warn("Error getting location, using default location (Jakarta):", error);
-          const defaultLoc = { lat: -6.2088, lng: 106.8456 };
-          setCoords(defaultLoc);
-          setCurrentLocation(`${defaultLoc.lat.toFixed(6)}, ${defaultLoc.lng.toFixed(6)}`);
+          console.error("Error getting location:", error);
+          setCoords(null);
+          setCurrentLocation("");
           setIsLocationAlertOpen(false);
-          alert(`Lokasi disetel ke default (Jakarta) karena GPS tidak aktif/diizinkan.\nKoordinat: ${defaultLoc.lat.toFixed(6)}, ${defaultLoc.lng.toFixed(6)}`);
+          alert("Akses lokasi ditolak atau gagal. Anda wajib mengaktifkan GPS dan memberikan izin lokasi untuk dapat memposting donasi makanan.");
         }
       );
     } else {
-      const defaultLoc = { lat: -6.2088, lng: 106.8456 };
-      setCoords(defaultLoc);
-      setCurrentLocation(`${defaultLoc.lat.toFixed(6)}, ${defaultLoc.lng.toFixed(6)}`);
+      setCoords(null);
+      setCurrentLocation("");
       setIsLocationAlertOpen(false);
-      alert(`Lokasi disetel ke default (Jakarta) karena Geolocation tidak didukung.\nKoordinat: ${defaultLoc.lat.toFixed(6)}, ${defaultLoc.lng.toFixed(6)}`);
+      alert("Geolocation tidak didukung oleh browser Anda. Anda wajib menggunakan browser yang mendukung GPS untuk berdonasi.");
     }
   };
 
