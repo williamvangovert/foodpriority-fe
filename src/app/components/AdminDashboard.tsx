@@ -26,9 +26,7 @@ interface User {
 export default function AdminDashboard() {
   const [sawWeights, setSawWeights] = useState({
     distance: 0.4,
-    expiry: 0.35,
-    quantity: 0.15,
-    packaging: 0.1
+    expiry: 0.60
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -70,13 +68,11 @@ export default function AdminDashboard() {
       ]);
 
       // Parse SAW weights
-      const weightsObj = { distance: 0.4, expiry: 0.35, quantity: 0.15, packaging: 0.1 };
+      const weightsObj = { distance: 0.4, expiry: 0.60 };
       data.sawWeights.forEach((w: any) => {
         const name = w.nama_kriteria.toLowerCase();
         if (name === "jarak") weightsObj.distance = w.nilai_bobot;
         if (name === "kadaluwarsa") weightsObj.expiry = w.nilai_bobot;
-        if (name === "jumlah") weightsObj.quantity = w.nilai_bobot;
-        if (name === "kemasan") weightsObj.packaging = w.nilai_bobot;
       });
       setSawWeights(weightsObj);
 
@@ -111,9 +107,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           weights: {
             jarak: sawWeights.distance,
-            kadaluwarsa: sawWeights.expiry,
-            jumlah: sawWeights.quantity,
-            kemasan: sawWeights.packaging
+            kadaluwarsa: sawWeights.expiry
           }
         })
       });
@@ -419,50 +413,16 @@ export default function AdminDashboard() {
                   <p className="text-xs text-gray-500">Seberapa besar prioritas diberikan pada makanan yang akan segera kedaluwarsa</p>
                 </div>
 
-                {/* Quantity Weight */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="quantity-weight">Bobot Jumlah</Label>
-                    <span className="text-sm font-medium">{(sawWeights.quantity * 100).toFixed(0)}%</span>
-                  </div>
-                  <Slider
-                    id="quantity-weight"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={[sawWeights.quantity * 100]}
-                    onValueChange={(value) => setSawWeights({...sawWeights, quantity: value[0] / 100})}
-                  />
-                  <p className="text-xs text-gray-500">Seberapa besar prioritas diberikan pada jumlah yang lebih banyak</p>
-                </div>
-
-                {/* Packaging Weight */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="packaging-weight">Bobot Kondisi Kemasan</Label>
-                    <span className="text-sm font-medium">{(sawWeights.packaging * 100).toFixed(0)}%</span>
-                  </div>
-                  <Slider
-                    id="packaging-weight"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={[sawWeights.packaging * 100]}
-                    onValueChange={(value) => setSawWeights({...sawWeights, packaging: value[0] / 100})}
-                  />
-                  <p className="text-xs text-gray-500">Seberapa besar prioritas diberikan pada kondisi kemasan yang lebih baik</p>
-                </div>
-
                 {/* Total Weight Display */}
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Total Bobot</span>
                     <span className="text-lg font-bold">
-                      {((sawWeights.distance + sawWeights.expiry + sawWeights.quantity + sawWeights.packaging) * 100).toFixed(0)}%
+                      {((sawWeights.distance + sawWeights.expiry) * 100).toFixed(0)}%
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {(sawWeights.distance + sawWeights.expiry + sawWeights.quantity + sawWeights.packaging) === 1 
+                    {(sawWeights.distance + sawWeights.expiry) === 1 
                       ? "✓ Bobot sudah dinormalisasi dengan benar" 
                       : "⚠️ Peringatan: Total harus sama dengan 100%"}
                   </p>
