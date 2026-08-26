@@ -278,6 +278,18 @@ export default function RecipientDashboard() {
     }
   };
 
+  const getExpiryColor = (hours: number) => {
+    if (hours < 48) return "text-red-600";
+    if (hours < 168) return "text-yellow-600";
+    return "text-green-600";
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 0.8) return "bg-green-100 text-green-800";
+    if (score >= 0.6) return "bg-yellow-100 text-yellow-800";
+    return "bg-gray-100 text-gray-800";
+  };
+
   const filteredItems = selectedFilter === "semua" 
     ? foodItems 
     : foodItems.filter(item => item.foodType.toLowerCase() === selectedFilter.toLowerCase());
