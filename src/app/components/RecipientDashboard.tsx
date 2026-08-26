@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MapPin, Navigation, Filter, Clock, TrendingUp, History, User as UserIcon, Star } from "lucide-react";
+import { MapPin, Navigation, Filter, Clock, TrendingUp, History, User as UserIcon, Star, Locate } from "lucide-react";
 import { Link } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -235,6 +235,15 @@ export default function RecipientDashboard() {
     }
   };
 
+  const handleRecenterMap = () => {
+    if (mapInstance && userLocation) {
+      mapInstance.setView([userLocation.lat, userLocation.lng], 15, {
+        animate: true,
+        duration: 1.0
+      });
+    }
+  };
+
   const handleClaimFood = async (item: FoodItem) => {
     try {
       const response = await apiFetch("/claims", {
@@ -380,8 +389,19 @@ export default function RecipientDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Leaflet Map Container */}
-              <div id="map-container" style={{ height: "384px" }} className="w-full rounded-lg overflow-hidden border border-gray-200 z-0"></div>
+              {/* Leaflet Map Container with Floating Recenter Button */}
+              <div className="relative">
+                <div id="map-container" style={{ height: "384px" }} className="w-full rounded-lg overflow-hidden border border-gray-200 z-0"></div>
+                {userLocation && (
+                  <button 
+                    onClick={handleRecenterMap}
+                    className="absolute bottom-4 right-4 z-[1000] p-3 bg-white hover:bg-gray-50 rounded-full shadow-lg border border-gray-200 text-gray-700 transition-all hover:scale-105 active:scale-95 flex items-center justify-center"
+                    title="Kembali ke lokasi saya"
+                  >
+                    <Locate className="w-6 h-6 text-blue-600" />
+                  </button>
+                )}
+              </div>
               
               {/* Map Legend */}
               <div className="mt-4 flex items-center gap-6 text-sm">
