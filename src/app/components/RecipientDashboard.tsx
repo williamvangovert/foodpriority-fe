@@ -40,10 +40,98 @@ export default function RecipientDashboard() {
   const [collectionHistory, setCollectionHistory] = useState<CollectionHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [mapInstance, setMapInstance] = useState<any>(null);
+  const [mapMarkers, setMapMarkers] = useState<any[]>([]);
+
   const [user] = useState(() => {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : { nama_lengkap: "Budi Santoso", username: "budisantoso", no_hp: "-", alamat: "-" };
   });
+
+  // Initialize Leaflet Map
+  useEffect(() => {
+    const L = (window as any).L;
+    if (!L || mapInstance || !userLocation) return;
+
+    // Create Leaflet Map Instance
+    const map = L.map("map-container").setView([userLocation.lat, userLocation.lng], 14);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    setMapInstance(map);
+
+    return () => {
+      map.remove();
+    };
+  }, [userLocation]);
+
+  // Update Markers dynamically when mapInstance, foodItems, or userLocation updates
+  useEffect(() => {
+    const L = (window as any).L;
+    if (!L || !mapInstance || !userLocation) return;
+
+    // Clear old markers
+    mapMarkers.forEach(marker => marker.remove());
+
+    const newMarkers: any[] = [];
+
+    // Green marker for donors, blue marker for recipient
+    const recipientIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    const donorIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    // 1. Add Recipient Location Marker
+    const uMarker = L.marker([userLocation.lat, userLocation.lng], { icon: recipientIcon })
+      .addTo(mapInstance)
+      .bindPopup(`<b>Lokasi Anda (Penerima)</b><br/>${currentLocation || "Menghitung lokasi..."}`);
+    newMarkers.push(uMarker);
+
+    // 2. Add Donors / Food Location Markers
+    foodItems.forEach(item => {
+      if (item.location && item.location.lat && item.location.lng) {
+        const markerText = `
+          <div style="font-family: system-ui, -apple-system, sans-serif; min-width: 140px;">
+            <h4 style="margin:0 0 4px 0; color:#10b981; font-weight:bold;">${item.foodType}</h4>
+            <p style="margin:0 0 2px 0; font-size:11px;">Donatur: <b>${item.donor}</b></p>
+            <p style="margin:0 0 2px 0; font-size:11px;">Jumlah: ${item.quantity}</p>
+            <p style="margin:0 0 2px 0; font-size:11px;">Jarak: ${item.distance} km</p>
+            <p style="margin:0 0 6px 0; font-size:11px;">Skor SAW: <b>${item.sawScore.toFixed(2)}</b></p>
+          </div>
+        `;
+        const marker = L.marker([item.location.lat, item.location.lng], { icon: donorIcon })
+          .addTo(mapInstance)
+          .bindPopup(markerText);
+        newMarkers.push(marker);
+      }
+    });
+
+    setMapMarkers(newMarkers);
+
+    // Auto-fit bounds if we have donor locations
+    if (newMarkers.length > 1) {
+      const group = new L.featureGroup(newMarkers);
+      mapInstance.fitBounds(group.getBounds().pad(0.1));
+    } else {
+      mapInstance.setView([userLocation.lat, userLocation.lng], 14);
+    }
+
+  }, [mapInstance, foodItems, userLocation]);
 
   const fetchRecommendations = async (lat: number, lng: number) => {
     try {
@@ -273,67 +361,15 @@ export default function RecipientDashboard() {
                   <CardTitle>Lokasi Makanan di Sekitar Anda</CardTitle>
                   <CardDescription>Peta interaktif menampilkan donasi yang tersedia</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleLocationRequest}>
+                <Button variant="outline" size="sm" onClick={handleLocationAllow}>
                   <Navigation className="w-4 h-4 mr-2" />
                   Gunakan Lokasi Saat Ini
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              {/* Simple Map Representation */}
-              <div className="relative bg-gray-100 rounded-lg h-96 overflow-hidden border border-gray-200">
-                {/* Map Grid */}
-                <div className="absolute inset-0 grid grid-cols-8 grid-rows-6">
-                  {Array.from({ length: 48 }).map((_, i) => (
-                    <div key={i} className="border border-gray-200 opacity-30" />
-                  ))}
-                </div>
-
-                {/* User Location */}
-                <div 
-                  className="absolute w-4 h-4 bg-blue-600 rounded-full border-2 border-white shadow-lg z-10"
-                  style={{ 
-                    left: '50%', 
-                    top: '50%',
-                    transform: 'translate(-50%, -50%)'
-                  }}
-                >
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                    Anda
-                  </div>
-                </div>
-
-                {/* Food Locations */}
-                {sortedItems.map((item, index) => {
-                  const positions = [
-                    { left: '55%', top: '45%' },
-                    { left: '60%', top: '52%' },
-                    { left: '42%', top: '58%' },
-                    { left: '68%', top: '38%' },
-                    { left: '58%', top: '48%' }
-                  ];
-                  const pos = positions[index % positions.length];
-                  
-                  return (
-                    <div
-                      key={item.id}
-                      className="absolute w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-lg cursor-pointer hover:bg-green-600 transition-colors z-10 flex items-center justify-center"
-                      style={pos}
-                      title={`${item.foodType} - ${item.location.name}`}
-                    >
-                      <MapPin className="w-4 h-4 text-white" />
-                      <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 bg-white text-xs px-2 py-1 rounded shadow-md border border-gray-200 whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity">
-                        <div className="font-medium">{item.foodType}</div>
-                        <div className="text-gray-600">{item.distance} km</div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Distance Circles */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-blue-300 rounded-full opacity-30" />
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-2 border-blue-300 rounded-full opacity-20" />
-              </div>
+              {/* Leaflet Map Container */}
+              <div id="map-container" style={{ height: "384px" }} className="w-full rounded-lg overflow-hidden border border-gray-200 z-0"></div>
               
               {/* Map Legend */}
               <div className="mt-4 flex items-center gap-6 text-sm">
@@ -343,7 +379,7 @@ export default function RecipientDashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full" />
-                  <span className="text-gray-600">Makanan Tersedia</span>
+                  <span className="text-gray-600">Makanan Tersedia (Donatur)</span>
                 </div>
               </div>
             </CardContent>
