@@ -42,6 +42,7 @@ export default function RecipientDashboard() {
 
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [mapMarkers, setMapMarkers] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("map");
 
   const [user] = useState(() => {
     const savedUser = localStorage.getItem("user");
@@ -53,6 +54,9 @@ export default function RecipientDashboard() {
     const L = (window as any).L;
     if (!L || mapInstance || !userLocation) return;
 
+    const container = document.getElementById("map-container");
+    if (!container) return;
+
     // Create Leaflet Map Instance
     const map = L.map("map-container").setView([userLocation.lat, userLocation.lng], 14);
 
@@ -62,8 +66,14 @@ export default function RecipientDashboard() {
 
     setMapInstance(map);
 
+    // Force map to recalculate its viewport size after paint
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
+
     return () => {
       map.remove();
+      setMapInstance(null);
     };
   }, [userLocation]);
 
@@ -366,7 +376,14 @@ export default function RecipientDashboard() {
         </Link>
       </div>
 
-      <Tabs defaultValue="map" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(val) => {
+        setActiveTab(val);
+        if (val === "map" && mapInstance) {
+          setTimeout(() => {
+            mapInstance.invalidateSize();
+          }, 100);
+        }
+      }} className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="map">Tampilan Peta</TabsTrigger>
           <TabsTrigger value="list">Tampilan Daftar</TabsTrigger>
