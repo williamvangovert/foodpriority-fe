@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { MapPin, Navigation, Filter, Clock, TrendingUp, History, User as UserIcon, Star, Locate } from "lucide-react";
-import { Link } from "react-router";
+import { MapPin, Navigation, Filter, Clock, TrendingUp, History, User as UserIcon, Star, Locate, ChevronRight } from "lucide-react";
+import { Link, useNavigate } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -32,6 +32,7 @@ interface CollectionHistory {
 }
 
 export default function RecipientDashboard() {
+  const navigate = useNavigate();
   const [selectedFilter, setSelectedFilter] = useState<string>("semua");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocationAlertOpen, setIsLocationAlertOpen] = useState(false);
@@ -39,6 +40,9 @@ export default function RecipientDashboard() {
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [collectionHistory, setCollectionHistory] = useState<CollectionHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [selectedClaimItem, setSelectedClaimItem] = useState<FoodItem | null>(null);
+  const [isClaimConfirmOpen, setIsClaimConfirmOpen] = useState(false);
 
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [mapMarkers, setMapMarkers] = useState<any[]>([]);
@@ -267,27 +271,37 @@ export default function RecipientDashboard() {
     }
   };
 
-  const handleClaimFood = async (item: FoodItem) => {
+  const handleInitiateClaim = (item: FoodItem) => {
+    setSelectedClaimItem(item);
+    setIsClaimConfirmOpen(true);
+  };
+
+  const handleConfirmClaimFood = async () => {
+    if (!selectedClaimItem) return;
     try {
       const response = await apiFetch("/claims", {
         method: "POST",
         body: JSON.stringify({
-          id_donasi: parseInt(item.id, 10),
-          jarak_antar_lokasi: item.distance,
-          skor_saw: item.sawScore,
+          id_donasi: parseInt(selectedClaimItem.id, 10),
+          jarak_antar_lokasi: selectedClaimItem.distance,
+          skor_saw: selectedClaimItem.sawScore,
         }),
       });
 
-      alert(response.message || "Makanan berhasil diklaim!");
+      setIsClaimConfirmOpen(false);
       
-      // Reload recommendations and claims
-      if (userLocation) {
-        fetchRecommendations(userLocation.lat, userLocation.lng);
+      // Navigate to claim detail page
+      if (response.claim && response.claim.id) {
+        navigate(`/claim/${response.claim.id}`);
+      } else {
+        fetchMyClaims();
+        if (userLocation) {
+          fetchRecommendations(userLocation.lat, userLocation.lng);
+        }
       }
-      fetchMyClaims();
-
     } catch (err: any) {
       alert(err.message || "Gagal mengklaim makanan.");
+      setIsClaimConfirmOpen(false);
     }
   };
 
@@ -539,7 +553,7 @@ export default function RecipientDashboard() {
                         <MapPin className="w-3 h-3 inline mr-1" />
                         {item.location.name}
                       </div>
-                      <Button size="sm" onClick={() => handleClaimFood(item)}>Klaim Makanan</Button>
+                      <Button size="sm" onClick={() => handleInitiateClaim(item)}>Klaim Makanan</Button>
                     </div>
                   </div>
                 ))}
@@ -556,24 +570,29 @@ export default function RecipientDashboard() {
             <History className="w-5 h-5 text-gray-600" />
             <CardTitle>Riwayat Pengambilan</CardTitle>
           </div>
-          <CardDescription>Makanan yang telah Anda ambil sebelumnya</CardDescription>
+          <CardDescription>Makanan yang telah Anda ambil sebelumnya (Klik untuk lihat detail & petunjuk arah)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {collectionHistory.map((item) => (
               <div 
                 key={item.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                onClick={() => navigate(`/claim/${item.id}`)}
+                className="flex items-center justify-between p-3 bg-gray-50 hover:bg-green-50/80 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-green-200"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  <div className="w-2.5 h-2.5 bg-green-500 rounded-full" />
                   <div>
                     <div className="font-medium text-gray-900">{item.foodType}</div>
                     <div className="text-sm text-gray-600">{item.quantity} dari {item.donor}</div>
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">
-                  {new Date(item.collectedDate).toLocaleDateString('id-ID')}
+                <div className="flex items-center gap-3">
+                  <div className="text-sm text-gray-500 text-right">
+                    <div>{new Date(item.collectedDate).toLocaleDateString('id-ID')}</div>
+                    <Badge variant="outline" className="text-[10px] mt-0.5">{item.status}</Badge>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
                 </div>
               </div>
             ))}
@@ -596,6 +615,42 @@ export default function RecipientDashboard() {
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleLocationAllow}>
               Izinkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Claim Confirmation Alert Dialog */}
+      <AlertDialog open={isClaimConfirmOpen} onOpenChange={setIsClaimConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl">Konfirmasi Klaim Makanan</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2 text-gray-700">
+              {selectedClaimItem && (
+                <>
+                  <p>Apakah Anda yakin ingin mengklaim donasi makanan berikut?</p>
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm space-y-1.5 text-gray-900">
+                    <div className="font-bold text-green-700 text-base">{selectedClaimItem.foodType}</div>
+                    <div>Donatur: <b>{selectedClaimItem.donor}</b></div>
+                    <div>Jumlah Porsi: {selectedClaimItem.quantity}</div>
+                    <div>Jarak ke Donatur: <b>{selectedClaimItem.distance} km</b></div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Setelah klaim dikonfirmasi, Anda akan langsung diarahkan ke Halaman Detail Klaim untuk melihat rute penjemputan di Google Maps.
+                  </p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel onClick={() => setIsClaimConfirmOpen(false)}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmClaimFood}
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+            >
+              Ya, Klaim Sekarang
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

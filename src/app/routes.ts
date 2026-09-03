@@ -7,6 +7,7 @@ import Login from "./components/Login";
 import Register from "./components/Register";
 import AdminLogin from "./components/AdminLogin";
 import Profile from "./components/Profile";
+import ClaimDetail from "./components/ClaimDetail";
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: "recipient", Component: RecipientDashboard },
       { path: "admin", Component: AdminDashboard },
       { path: "profile", Component: Profile },
+      { path: "claim/:id", Component: ClaimDetail },
     ],
   },
 ]);
