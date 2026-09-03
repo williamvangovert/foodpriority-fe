@@ -79,6 +79,7 @@ export default function DonorDashboard() {
 
   const [formData, setFormData] = useState({
     foodType: "",
+    customFoodName: "",
     quantity: "",
     packaging: "",
     expiryDate: "",
@@ -150,9 +151,18 @@ export default function DonorDashboard() {
       return;
     }
 
+    if (formData.foodType === "Lainnya" && !formData.customFoodName.trim()) {
+      alert("Silakan masukkan nama makanan pada kolom yang tersedia.");
+      return;
+    }
+
+    const finalFoodName = formData.foodType === "Lainnya" 
+      ? formData.customFoodName.trim() 
+      : formData.foodType;
+
     try {
       const data = new FormData();
-      data.append("nama_makanan", formData.foodType);
+      data.append("nama_makanan", finalFoodName);
       data.append("jumlah_porsi", formData.quantity);
       data.append("kemasan", formData.packaging || "Baik");
       data.append("batas_kadaluwarsa", formData.expiryDate);
@@ -172,6 +182,7 @@ export default function DonorDashboard() {
       // Reset form & reload donations
       setFormData({
         foodType: "",
+        customFoodName: "",
         quantity: "",
         packaging: "",
         expiryDate: "",
@@ -482,10 +493,29 @@ export default function DonorDashboard() {
                     <SelectItem value="Makanan Kaleng">Makanan Kaleng</SelectItem>
                     <SelectItem value="Produk Susu">Produk Susu</SelectItem>
                     <SelectItem value="Daging">Daging</SelectItem>
-                    <SelectItem value="Lainnya">Lainnya</SelectItem>
+                    <SelectItem value="Lainnya">Lainnya (Ketik Manual)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {formData.foodType === "Lainnya" && (
+                <div className="space-y-2 p-3 bg-amber-50/70 border border-amber-200 rounded-lg animate-in fade-in-50 duration-200">
+                  <Label htmlFor="customFoodName" className="text-amber-900 font-semibold flex items-center gap-1">
+                    Nama Makanan Spesifik <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="customFoodName"
+                    placeholder="contoh: Nasi Liwet Komplit, Aneka Pastry, Soto Ayam"
+                    value={formData.customFoodName}
+                    onChange={(e) => setFormData({...formData, customFoodName: e.target.value})}
+                    className="bg-white border-amber-300 focus-visible:ring-amber-500"
+                    required
+                  />
+                  <p className="text-xs text-amber-700">
+                    Masukkan nama atau jenis makanan yang ingin Anda donasikan secara spesifik.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="quantity">Jumlah (Porsi / Kg)</Label>
