@@ -37,6 +37,7 @@ export default function ClaimDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const fetchClaimDetail = async () => {
     try {
@@ -51,11 +52,22 @@ export default function ClaimDetail() {
     }
   };
 
+  // Get recipient's current GPS location for accurate Google Maps origin
   useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        (err) => {
+          console.warn("Location permission denied or unavailable:", err);
+        }
+      );
+    }
     fetchClaimDetail();
   }, [id]);
 
-  // Leaflet map setup for claim location
+  // Leaflet map setup for claim location with route line
   useEffect(() => {
     if (!claim || !claim.latitude_donatur || !claim.longitude_donatur) return;
     const L = (window as any).L;
@@ -68,10 +80,10 @@ export default function ClaimDetail() {
       mapInstance.remove();
     }
 
-    const lat = Number(claim.latitude_donatur);
-    const lng = Number(claim.longitude_donatur);
+    const donorLat = Number(claim.latitude_donatur);
+    const donorLng = Number(claim.longitude_donatur);
 
-    const map = L.map("claim-map-container").setView([lat, lng], 15);
+    const map = L.map("claim-map-container").setView([donorLat, donorLng], 14);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; OpenStreetMap contributors'
@@ -86,10 +98,47 @@ export default function ClaimDetail() {
       shadowSize: [41, 41]
     });
 
-    L.marker([lat, lng], { icon: donorIcon })
+    const recipientIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    const markers: any[] = [];
+
+    // Donor Marker
+    const donorMarker = L.marker([donorLat, donorLng], { icon: donorIcon })
       .addTo(map)
-      .bindPopup(`<b>${claim.nama_makanan}</b><br/>Donatur: ${claim.nama_donatur}`)
-      .openPopup();
+      .bindPopup(`<b>${claim.nama_makanan}</b><br/>Donatur: ${claim.nama_donatur}`);
+    markers.push(donorMarker);
+
+    // If recipient location is available, add recipient marker & polyline
+    if (userLocation) {
+      const recipientMarker = L.marker([userLocation.lat, userLocation.lng], { icon: recipientIcon })
+        .addTo(map)
+        .bindPopup("<b>Lokasi Anda (Penerima)</b>");
+      markers.push(recipientMarker);
+
+      // Draw dashed blue route line between Recipient and Donor
+      const routeLine = L.polyline([
+        [userLocation.lat, userLocation.lng],
+        [donorLat, donorLng]
+      ], {
+        color: '#2563eb',
+        weight: 4,
+        dashArray: '8, 8',
+        opacity: 0.8
+      }).addTo(map);
+
+      // Fit map view bounds to cover both points
+      const group = new L.featureGroup([donorMarker, recipientMarker, routeLine]);
+      map.fitBounds(group.getBounds().pad(0.15));
+    } else {
+      donorMarker.openPopup();
+    }
 
     setMapInstance(map);
 
@@ -101,12 +150,20 @@ export default function ClaimDetail() {
       map.remove();
       setMapInstance(null);
     };
-  }, [claim]);
+  }, [claim, userLocation]);
 
   const handleOpenGoogleMaps = () => {
     if (!claim) return;
-    const destination = `${claim.latitude_donatur},${claim.longitude_donatur}`;
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+    const dest = `${claim.latitude_donatur},${claim.longitude_donatur}`;
+    let mapsUrl = "";
+
+    if (userLocation) {
+      // Include exact user GPS origin for precise route navigation
+      mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${dest}&travelmode=driving`;
+    } else {
+      mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+    }
+
     window.open(mapsUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -118,6 +175,15 @@ export default function ClaimDetail() {
     }
     const message = encodeURIComponent(`Halo ${claim.nama_donatur}, saya penerima donasi "${claim.nama_makanan}" di FoodPriority.`);
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, "_blank");
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone) return "-";
+    const clean = phone.replace(/[^0-9]/g, "");
+    if (clean.startsWith("0")) {
+      return clean.replace(/(\d{4})(\d{4})(\d+)/, "$1-$2-$3");
+    }
+    return phone;
   };
 
   const getStatusColor = (status: ClaimDetailData["status_klaim"]) => {
@@ -317,19 +383,21 @@ export default function ClaimDetail() {
               </div>
 
               {claim.no_hp_donatur && (
-                <div className="pt-2 border-t">
-                  <span className="text-xs text-gray-500 block mb-2">Kontak Donatur</span>
-                  <div className="flex flex-col gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full justify-start text-green-700 border-green-300 hover:bg-green-50"
-                      onClick={handleContactWhatsApp}
-                    >
-                      <Phone className="w-3.5 h-3.5 mr-2 text-green-600" />
-                      Hubungi via WhatsApp ({claim.no_hp_donatur})
-                    </Button>
+                <div className="pt-3 border-t space-y-2">
+                  <span className="text-xs text-gray-500 block">Kontak Donatur</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-gray-900 text-sm">
+                      {formatPhoneNumber(claim.no_hp_donatur)}
+                    </span>
                   </div>
+                  <Button 
+                    size="sm"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-2 py-2 h-auto text-xs shadow-sm"
+                    onClick={handleContactWhatsApp}
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    Hubungi via WhatsApp
+                  </Button>
                 </div>
               )}
             </CardContent>
