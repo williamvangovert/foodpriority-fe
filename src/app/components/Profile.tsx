@@ -13,13 +13,35 @@ export default function Profile() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  const getInitialUser = () => {
+    try {
+      const saved = localStorage.getItem("user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const initialUser = getInitialUser();
+
   const [profileData, setProfileData] = useState({
-    fullName: "",
-    username: "",
-    email: "",
-    phoneNumber: "",
-    address: "",
-    role: ""
+    fullName: initialUser?.nama_lengkap || "",
+    username: initialUser?.username || "",
+    email: initialUser?.username ? `${initialUser.username}@foodpriority.id` : "",
+    phoneNumber: initialUser?.no_hp || "",
+    address: initialUser?.alamat || "",
+    role: initialUser?.role === "donor" ? "Donatur" : initialUser?.role === "recipient" ? "Penerima" : "Admin"
+  });
+
+  const [stats, setStats] = useState({
+    totalDonasi: initialUser?.stats?.totalDonasi || 0,
+    orangTerbantu: initialUser?.stats?.orangTerbantu || 0,
+    donasiAktif: initialUser?.stats?.donasiAktif || 0,
+    totalKlaim: initialUser?.stats?.totalKlaim || 0,
+    klaimSelesai: initialUser?.stats?.klaimSelesai || 0,
+    klaimAktif: initialUser?.stats?.klaimAktif || 0,
+    joinDate: initialUser?.stats?.joinDate || initialUser?.join_date || ""
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -32,14 +54,28 @@ export default function Profile() {
     try {
       setIsLoading(true);
       const data = await apiFetch("/auth/me");
-      setProfileData({
-        fullName: data.nama_lengkap,
-        username: data.username,
-        email: `${data.username}@foodpriority.id`, // placeholder
-        phoneNumber: data.no_hp,
-        address: data.alamat,
-        role: data.role === "donor" ? "Donatur" : data.role === "recipient" ? "Penerima" : "Admin"
-      });
+      if (data) {
+        setProfileData({
+          fullName: data.nama_lengkap || "",
+          username: data.username || "",
+          email: `${data.username}@foodpriority.id`,
+          phoneNumber: data.no_hp || "",
+          address: data.alamat || "",
+          role: data.role === "donor" ? "Donatur" : data.role === "recipient" ? "Penerima" : "Admin"
+        });
+        if (data.stats) {
+          setStats({
+            totalDonasi: data.stats.totalDonasi || 0,
+            orangTerbantu: data.stats.orangTerbantu || 0,
+            donasiAktif: data.stats.donasiAktif || 0,
+            totalKlaim: data.stats.totalKlaim || 0,
+            klaimSelesai: data.stats.klaimSelesai || 0,
+            klaimAktif: data.stats.klaimAktif || 0,
+            joinDate: data.stats.joinDate || data.join_date || ""
+          });
+        }
+        localStorage.setItem("user", JSON.stringify(data));
+      }
     } catch (err) {
       console.error("Gagal mengambil profil:", err);
     } finally {
@@ -321,24 +357,70 @@ export default function Profile() {
               <CardDescription>Aktivitas Anda di FoodPriority</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                  <div className="text-sm text-green-700 mb-1">Total Donasi</div>
-                  <div className="text-2xl font-bold text-green-900">156 kg</div>
+              {profileData.role === "Donatur" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <div className="text-sm text-green-700 mb-1">Total Donasi</div>
+                    <div className="text-2xl font-bold text-green-900">{stats.totalDonasi} porsi</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="text-sm text-blue-700 mb-1">Orang Terbantu</div>
+                    <div className="text-2xl font-bold text-blue-900">{stats.orangTerbantu}</div>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <div className="text-sm text-purple-700 mb-1">Donasi Aktif</div>
+                    <div className="text-2xl font-bold text-purple-900">{stats.donasiAktif}</div>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                    <div className="text-sm text-orange-700 mb-1">Bergabung Sejak</div>
+                    <div className="text-lg font-bold text-orange-900">
+                      {stats.joinDate ? new Date(stats.joinDate).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) : "-"}
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="text-sm text-blue-700 mb-1">Orang Terbantu</div>
-                  <div className="text-2xl font-bold text-blue-900">842</div>
+              ) : profileData.role === "Penerima" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="text-sm text-blue-700 mb-1">Total Klaim</div>
+                    <div className="text-2xl font-bold text-blue-900">{stats.totalKlaim} makanan</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <div className="text-sm text-green-700 mb-1">Klaim Selesai</div>
+                    <div className="text-2xl font-bold text-green-900">{stats.klaimSelesai}</div>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <div className="text-sm text-purple-700 mb-1">Klaim Aktif</div>
+                    <div className="text-2xl font-bold text-purple-900">{stats.klaimAktif}</div>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                    <div className="text-sm text-orange-700 mb-1">Bergabung Sejak</div>
+                    <div className="text-lg font-bold text-orange-900">
+                      {stats.joinDate ? new Date(stats.joinDate).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) : "-"}
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                  <div className="text-sm text-purple-700 mb-1">Donasi Aktif</div>
-                  <div className="text-2xl font-bold text-purple-900">3</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <div className="text-sm text-green-700 mb-1">Total Donasi Sistem</div>
+                    <div className="text-2xl font-bold text-green-900">{stats.totalDonasi} porsi</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="text-sm text-blue-700 mb-1">Total Pengguna</div>
+                    <div className="text-2xl font-bold text-blue-900">{stats.orangTerbantu}</div>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <div className="text-sm text-purple-700 mb-1">Donasi Aktif</div>
+                    <div className="text-2xl font-bold text-purple-900">{stats.donasiAktif}</div>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                    <div className="text-sm text-orange-700 mb-1">Bergabung Sejak</div>
+                    <div className="text-lg font-bold text-orange-900">
+                      {stats.joinDate ? new Date(stats.joinDate).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) : "-"}
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
-                  <div className="text-sm text-orange-700 mb-1">Bergabung Sejak</div>
-                  <div className="text-lg font-bold text-orange-900">Mar 2026</div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>

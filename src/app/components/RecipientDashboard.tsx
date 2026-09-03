@@ -44,10 +44,22 @@ export default function RecipientDashboard() {
   const [mapMarkers, setMapMarkers] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<string>("map");
 
-  const [user] = useState(() => {
+  const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("user");
-    return savedUser ? JSON.parse(savedUser) : { nama_lengkap: "Budi Santoso", username: "budisantoso", no_hp: "-", alamat: "-" };
+    return savedUser ? JSON.parse(savedUser) : { nama_lengkap: "Penerima", username: "penerima", no_hp: "-", alamat: "-" };
   });
+
+  const fetchUserInfo = async () => {
+    try {
+      const data = await apiFetch("/auth/me");
+      if (data) {
+        setUser(data);
+        localStorage.setItem("user", JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("Gagal mengambil data user:", err);
+    }
+  };
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -198,6 +210,7 @@ export default function RecipientDashboard() {
 
   // Get recipient location on load
   useEffect(() => {
+    fetchUserInfo();
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -390,7 +403,7 @@ export default function RecipientDashboard() {
         </TabsList>
 
         {/* Map View */}
-        <TabsContent value="map" className="space-y-6">
+        <div className={activeTab === "map" ? "space-y-6" : "hidden"}>
           {/* Interactive Map */}
           <Card>
             <CardHeader>
@@ -433,10 +446,10 @@ export default function RecipientDashboard() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
         {/* List View */}
-        <TabsContent value="list" className="space-y-6">
+        <div className={activeTab === "list" ? "space-y-6" : "hidden"}>
           {/* Filter Section */}
           <Card>
             <CardHeader>
@@ -533,7 +546,7 @@ export default function RecipientDashboard() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
       </Tabs>
 
       {/* Collection History */}

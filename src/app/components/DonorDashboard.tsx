@@ -32,10 +32,22 @@ export default function DonorDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [user] = useState(() => {
+  const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("user");
-    return savedUser ? JSON.parse(savedUser) : { nama_lengkap: "Restoran Lokal", username: "restlokal", no_hp: "-", alamat: "-" };
+    return savedUser ? JSON.parse(savedUser) : { nama_lengkap: "Donatur", username: "donatur", no_hp: "-", alamat: "-" };
   });
+
+  const fetchUserInfo = async () => {
+    try {
+      const data = await apiFetch("/auth/me");
+      if (data) {
+        setUser(data);
+        localStorage.setItem("user", JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("Gagal mengambil data user:", err);
+    }
+  };
 
   const [formData, setFormData] = useState({
     foodType: "",
@@ -73,6 +85,7 @@ export default function DonorDashboard() {
   };
 
   useEffect(() => {
+    fetchUserInfo();
     fetchMyDonations();
   }, []);
 
