@@ -73,6 +73,10 @@ export default function RecipientDashboard() {
     const container = document.getElementById("map-container");
     if (!container) return;
 
+    if ((container as any)._leaflet_id) {
+      (container as any)._leaflet_id = null;
+    }
+
     // Create Leaflet Map Instance
     const map = L.map("map-container").setView([userLocation.lat, userLocation.lng], 14);
 
@@ -88,7 +92,14 @@ export default function RecipientDashboard() {
     }, 200);
 
     return () => {
-      map.remove();
+      try {
+        map.remove();
+      } catch (e) {
+        // ignore if already removed
+      }
+      if (container) {
+        (container as any)._leaflet_id = null;
+      }
       setMapInstance(null);
     };
   }, [userLocation]);

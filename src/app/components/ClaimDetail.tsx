@@ -76,8 +76,9 @@ export default function ClaimDetail() {
     const container = document.getElementById("claim-map-container");
     if (!container) return;
 
-    if (mapInstance) {
-      mapInstance.remove();
+    // Reset container's internal Leaflet ID if it exists to allow clean re-initialization on refresh
+    if ((container as any)._leaflet_id) {
+      (container as any)._leaflet_id = null;
     }
 
     const donorLat = Number(claim.latitude_donatur);
@@ -147,7 +148,14 @@ export default function ClaimDetail() {
     }, 200);
 
     return () => {
-      map.remove();
+      try {
+        map.remove();
+      } catch (e) {
+        // ignore if already removed
+      }
+      if (container) {
+        (container as any)._leaflet_id = null;
+      }
       setMapInstance(null);
     };
   }, [claim, userLocation]);
