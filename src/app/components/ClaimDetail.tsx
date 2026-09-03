@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, MapPin, Clock, Phone, User, Navigation, ExternalLink, AlertCircle } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Phone, User, Navigation, ExternalLink, AlertCircle, CheckCircle, Check } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { apiFetch, getImageUrl } from "../utils/api";
 
 interface ClaimDetailData {
@@ -14,7 +15,7 @@ interface ClaimDetailData {
   waktu_klaim: string;
   jarak_antar_lokasi: number;
   skor_saw: number;
-  status_klaim: "Menunggu" | "Diambil" | "Selesai" | "Dibatalkan";
+  status_klaim: "Menunggu" | "Diambil" | "Sedang Diambil" | "Selesai" | "Dibatalkan";
   nama_makanan: string;
   foto_makanan: string | null;
   deskripsi: string;
@@ -38,6 +39,17 @@ export default function ClaimDetail() {
   const [error, setError] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const [currentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const fetchClaimDetail = async () => {
     try {
@@ -175,14 +187,36 @@ export default function ClaimDetail() {
     window.open(mapsUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleContactWhatsApp = () => {
-    if (!claim || !claim.no_hp_donatur) return;
-    let cleanPhone = claim.no_hp_donatur.replace(/[^0-9]/g, "");
+  const handleContactWhatsApp = (target: "donor" | "recipient") => {
+    if (!claim) return;
+    const phone = target === "donor" ? claim.no_hp_donatur : claim.no_hp_penerima;
+    const name = target === "donor" ? claim.nama_donatur : claim.nama_penerima;
+    if (!phone) return;
+
+    let cleanPhone = phone.replace(/[^0-9]/g, "");
     if (cleanPhone.startsWith("0")) {
       cleanPhone = "62" + cleanPhone.slice(1);
     }
-    const message = encodeURIComponent(`Halo ${claim.nama_donatur}, saya penerima donasi "${claim.nama_makanan}" di FoodPriority.`);
+    const message = encodeURIComponent(`Halo ${name}, terkait donasi "${claim.nama_makanan}" di FoodPriority.`);
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, "_blank");
+  };
+
+  const handleCompleteClaim = async () => {
+    if (!claim) return;
+    try {
+      setIsUpdating(true);
+      await apiFetch(`/claims/${claim.id}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status_klaim: "Selesai" })
+      });
+      setIsConfirmModalOpen(false);
+      alert("Status donasi berhasil diperbarui menjadi Sudah Diambil (Selesai & Terklaim)!");
+      fetchClaimDetail();
+    } catch (err: any) {
+      alert(err.message || "Gagal memperbarui status.");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const formatPhoneNumber = (phone: string) => {
@@ -199,9 +233,10 @@ export default function ClaimDetail() {
       case "Menunggu":
         return "bg-yellow-100 text-yellow-800 border-yellow-300";
       case "Diambil":
-        return "bg-blue-100 text-blue-800 border-blue-300";
+      case "Sedang Diambil":
+        return "bg-amber-100 text-amber-800 border-amber-300";
       case "Selesai":
-        return "bg-green-100 text-green-800 border-green-300";
+        return "bg-emerald-100 text-emerald-800 border-emerald-300";
       case "Dibatalkan":
       default:
         return "bg-red-100 text-red-800 border-red-300";
@@ -234,6 +269,9 @@ export default function ClaimDetail() {
     );
   }
 
+  const isDonorOrAdmin = currentUser && (currentUser.role === "donor" || currentUser.role === "admin" || currentUser.id === claim.id_donatur);
+  const isClaimActive = claim.status_klaim === "Menunggu" || claim.status_klaim === "Diambil" || claim.status_klaim === "Sedang Diambil";
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Top Back Navigation */}
@@ -253,24 +291,38 @@ export default function ClaimDetail() {
             <h1 className="text-2xl font-bold text-gray-900">Detail Klaim Makanan</h1>
             <Badge className={`${getStatusColor(claim.status_klaim)} border text-xs px-2.5 py-0.5 font-medium`}>
               {claim.status_klaim === "Menunggu" && "Menunggu Penjemputan"}
-              {claim.status_klaim === "Diambil" && "Sedang Diambil"}
-              {claim.status_klaim === "Selesai" && "Selesai"}
+              {(claim.status_klaim === "Diambil" || claim.status_klaim === "Sedang Diambil") && "Sedang Diambil"}
+              {claim.status_klaim === "Selesai" && "Sudah Diambil (Selesai)"}
               {claim.status_klaim === "Dibatalkan" && "Dibatalkan"}
             </Badge>
           </div>
           <p className="text-sm text-gray-600">ID Transaksi Klaim: #{claim.id}</p>
         </div>
 
-        {/* Action Button: Google Maps */}
-        <Button 
-          size="lg" 
-          className="bg-green-600 hover:bg-green-700 text-white font-medium shadow-md flex items-center gap-2"
-          onClick={handleOpenGoogleMaps}
-        >
-          <Navigation className="w-5 h-5" />
-          Buka Rute di Google Maps
-          <ExternalLink className="w-4 h-4 ml-1 opacity-80" />
-        </Button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          {isDonorOrAdmin && isClaimActive && (
+            <Button 
+              size="lg" 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md flex items-center gap-2"
+              onClick={() => setIsConfirmModalOpen(true)}
+            >
+              <Check className="w-5 h-5" />
+              Tandai Sudah Diambil
+            </Button>
+          )}
+
+          <Button 
+            size="lg" 
+            variant="outline"
+            className="border-green-600 text-green-700 hover:bg-green-50 font-medium shadow-sm flex items-center gap-2"
+            onClick={handleOpenGoogleMaps}
+          >
+            <Navigation className="w-5 h-5 text-green-600" />
+            Buka Petunjuk Rute
+            <ExternalLink className="w-4 h-4 ml-1 opacity-80" />
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -401,10 +453,54 @@ export default function ClaimDetail() {
                   <Button 
                     size="sm"
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-2 py-2 h-auto text-xs shadow-sm"
-                    onClick={handleContactWhatsApp}
+                    onClick={() => handleContactWhatsApp("donor")}
                   >
                     <Phone className="w-3.5 h-3.5" />
-                    Hubungi via WhatsApp
+                    Hubungi Donatur via WA
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recipient Information Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-600" />
+                Informasi Penerima
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <span className="text-xs text-gray-500 block">Nama Penerima</span>
+                <span className="font-semibold text-gray-900">{claim.nama_penerima}</span>
+              </div>
+
+              {claim.alamat_penerima && (
+                <div>
+                  <span className="text-xs text-gray-500 block">Alamat Penerima</span>
+                  <span className="font-medium text-gray-800 leading-snug block mt-0.5">
+                    {claim.alamat_penerima}
+                  </span>
+                </div>
+              )}
+
+              {claim.no_hp_penerima && (
+                <div className="pt-3 border-t space-y-2">
+                  <span className="text-xs text-gray-500 block">Kontak Penerima</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-gray-900 text-sm">
+                      {formatPhoneNumber(claim.no_hp_penerima)}
+                    </span>
+                  </div>
+                  <Button 
+                    size="sm"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center justify-center gap-2 py-2 h-auto text-xs shadow-sm"
+                    onClick={() => handleContactWhatsApp("recipient")}
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    Hubungi Penerima via WA
                   </Button>
                 </div>
               )}
@@ -436,6 +532,46 @@ export default function ClaimDetail() {
           </Card>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={isConfirmModalOpen} onOpenChange={setIsConfirmModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl flex items-center gap-2 text-emerald-700">
+              <CheckCircle className="w-6 h-6 text-emerald-600" />
+              Konfirmasi Penyerahan Makanan
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2 text-gray-700">
+              <p>
+                Apakah Anda yakin makanan <b>"{claim.nama_makanan}"</b> telah selesai diambil oleh <b>{claim.nama_penerima}</b>?
+              </p>
+              <p className="text-xs text-gray-500">
+                Setelah dikonfirmasi, status klaim akan berubah menjadi <b>"Sudah Diambil" (Selesai)</b> dan donasi tercatat sebagai berhasil tersalurkan.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel disabled={isUpdating} onClick={() => setIsConfirmModalOpen(false)}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isUpdating}
+              onClick={handleCompleteClaim}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-2"
+            >
+              {isUpdating ? (
+                <>Menyimpan...</>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  Ya, Tandai Sudah Diambil
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
